@@ -1,0 +1,11 @@
+[package]
+name = "mstow"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pathdiff = "0.2.1"
+clap = { version = "3.2.12", features = ["derive"] }
+clap-verbosity-flag = "1.0.1"
+simple_logger = { version = "2.2.0", default-features = false }
+log = "0.4.17"
