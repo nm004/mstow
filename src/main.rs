@@ -53,10 +53,9 @@ fn main() {
     };
     debug!("main: unstowing = {}", cli.unstowing);
     debug!("main: target = {}", cli.target.to_string_lossy());
-    cli.source
-        .iter()
-        .enumerate()
-        .for_each(|s| debug!("main: source[{}] = {}", s.0, s.1.to_string_lossy()));
+    for (i, j) in cli.source.iter().enumerate() {
+        debug!("main: source[{}] = {}", i, j.to_string_lossy());
+    }
 
     macro_rules! gen_list {
         ($list:ident) => {{
