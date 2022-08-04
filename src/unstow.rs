@@ -21,32 +21,20 @@ use log::debug;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::{List, SourceTargetDiff};
+use crate::{DirTraversal, SourceTargetDiff};
 
-pub struct UnstowList(Vec<PathBuf>);
-
-impl IntoIterator for UnstowList {
-    type Item = <Vec<PathBuf> as IntoIterator>::Item;
-    type IntoIter = <Vec<PathBuf> as IntoIterator>::IntoIter;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
+pub fn new_unstow_list(source: &Path, target: &Path) -> Result<Vec<PathBuf>, io::Error> {
+    let mut s = vec![];
+    s.init_(source, target)?;
+    Ok(s)
 }
 
-impl UnstowList {
-    pub fn new(source: &Path, target: &Path) -> Result<Self, io::Error> {
-        let mut s = Self(vec![]);
-        s.init(source, target)?;
-        Ok(s)
-    }
-}
-
-impl List for UnstowList {
-    fn reserve(&mut self, s: usize) {
-        self.0.reserve_exact(s);
+impl DirTraversal for Vec<PathBuf> {
+    fn reserve_cap_(&mut self, s: usize) {
+        self.reserve_exact(s);
     }
 
-    fn update(
+    fn update_state_(
         &mut self,
         source: &Path,
         target: &Path,
@@ -69,11 +57,11 @@ impl List for UnstowList {
                 Err(e)
             }
 
-            (false, true) => self.traverse_fs(source, target, diff),
+            (false, true) => self.traverse_(source, target, diff),
 
             (true, false) => {
                 if diff.conv_source_rel(source) == target.read_link()? {
-                    self.0.push(target.into());
+                    self.push(target.into());
                     return Ok(());
                 }
                 Ok(())
@@ -81,10 +69,10 @@ impl List for UnstowList {
 
             (true, true) => {
                 if source.canonicalize().unwrap() == target.canonicalize().unwrap() {
-                    self.0.push(target.into());
+                    self.push(target.into());
                     return Ok(());
                 }
-                self.traverse_fs(source, target, diff)
+                self.traverse_(source, target, diff)
             }
         }
     }

@@ -20,7 +20,7 @@
 use clap::Parser;
 use clap_verbosity_flag::{Verbosity, WarnLevel};
 use log::{debug, error, info, warn};
-use mstow::{StowList,UnstowList};
+use mstow::{new_stow_list, new_unstow_list};
 use std::fs::remove_file;
 use std::os::unix::fs::symlink;
 use std::path::PathBuf;
@@ -68,15 +68,15 @@ fn main() {
 
     info!("Begin operation.");
     if !cli.unstowing {
-        let ll: Result<Vec<_>, _> = cli
+        let ll: Result<Box<_>, _> = cli
             .source
             .iter()
-            .map(|s| StowList::new(s, &cli.target))
+            .map(|s| new_stow_list(s, &cli.target))
             .collect();
 
 	ok_or_abort!(ll);
 
-	for l in ll.unwrap() {
+	for l in ll.unwrap().into_iter() {
             for (ref t, ref s) in l {
 		info!("Stow: {} -> {}", t.to_string_lossy(), s.to_string_lossy());
 		if let Err(e) = symlink(s, t) {
@@ -93,7 +93,7 @@ fn main() {
         let ll: Result<Vec<_>, _> = cli
             .source
             .iter()
-            .map(|s| UnstowList::new(s, &cli.target))
+            .map(|s| new_unstow_list(s, &cli.target))
             .collect();
 
 	ok_or_abort!(ll);

@@ -22,35 +22,23 @@ use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::{List, SourceTargetDiff};
-
-type PathMap = HashMap<PathBuf, PathBuf>;
+use crate::{DirTraversal, SourceTargetDiff};
 
 // target -> source
-pub struct StowList(PathMap);
+type PathMap = HashMap<PathBuf, PathBuf>;
 
-impl IntoIterator for StowList {
-    type Item = <PathMap as IntoIterator>::Item;
-    type IntoIter = <PathMap as IntoIterator>::IntoIter;
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
+pub fn new_stow_list(source: &Path, target: &Path) -> Result<PathMap, io::Error> {
+    let mut s = PathMap::new();
+    s.init_(source, target)?;
+    Ok(s)
 }
 
-impl StowList {
-    pub fn new(source: &Path, target: &Path) -> Result<Self, io::Error> {
-        let mut s = Self(HashMap::new());
-        s.init(source, target)?;
-        Ok(s)
-    }
-}
-
-impl List for StowList {
-    fn reserve(&mut self, s: usize) {
-        self.0.reserve(s)
+impl DirTraversal for PathMap {
+    fn reserve_cap_(&mut self, s: usize) {
+        self.reserve(s)
     }
 
-    fn update(
+    fn update_state_(
         &mut self,
         source: &Path,
         target: &Path,
@@ -60,7 +48,7 @@ impl List for StowList {
         debug!("StowList::update_: target = {}", target.to_string_lossy());
         match (target.exists(), target.is_dir()) {
             (false, _) => {
-                let r = self.0.insert(target.into(), diff.conv_source_rel(source));
+                let r = self.insert(target.into(), diff.conv_source_rel(source));
                 if let None = r {
                     return Ok(());
                 }
@@ -68,7 +56,7 @@ impl List for StowList {
                     io::ErrorKind::AlreadyExists,
                     format!(
                         "Conflict source files {} & {}.",
-                        self.0.get(target).unwrap().to_string_lossy(),
+                        self.get(target).unwrap().to_string_lossy(),
                         r.unwrap().to_string_lossy()
                     ),
                 );
@@ -91,7 +79,7 @@ impl List for StowList {
                     return Ok(());
                 }
 
-                self.traverse_fs(source, target, diff)
+                self.traverse_(source, target, diff)
             }
         }
     }

@@ -19,31 +19,31 @@
 
 mod stow;
 mod unstow;
-pub use stow::StowList;
-pub use unstow::UnstowList;
+pub use stow::new_stow_list;
+pub use unstow::new_unstow_list;
 
 use pathdiff::diff_paths;
 use std::io;
 use std::iter::repeat;
 use std::path::{Path, PathBuf};
 
-trait List {
-    fn init(&mut self, source: &Path, target: &Path) -> Result<(), io::Error> {
+trait DirTraversal {
+    fn init_(&mut self, source: &Path, target: &Path) -> Result<(), io::Error> {
         let diff = SourceTargetDiff::new(source, target);
-        self.traverse_fs(source, target, &diff)
+        self.traverse_(source, target, &diff)
     }
 
-    fn traverse_fs(
+    fn traverse_(
         &mut self,
         source: &Path,
         target: &Path,
         diff: &SourceTargetDiff,
     ) -> Result<(), io::Error> {
         if !target.metadata()?.permissions().readonly() {
-            self.reserve(source.read_dir()?.count());
+            self.reserve_cap_(source.read_dir()?.count());
             return source.read_dir().unwrap().try_for_each(|ent| {
                 let ent = ent?;
-                self.update(
+                self.update_state_(
                     &ent.path(),
                     &target.join(PathBuf::from(ent.file_name())),
                     diff,
@@ -61,14 +61,14 @@ trait List {
         Err(e)
     }
 
-    fn update(
+    fn update_state_(
         &mut self,
         source: &Path,
         target: &Path,
         diff: &SourceTargetDiff,
     ) -> Result<(), io::Error>;
 
-    fn reserve(&mut self, s: usize);
+    fn reserve_cap_(&mut self, s: usize);
 }
 
 struct SourceTargetDiff {
