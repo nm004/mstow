@@ -20,7 +20,7 @@
 use clap::Parser;
 use clap_verbosity_flag::{Verbosity, WarnLevel};
 use log::{debug, error, info, warn};
-use mstow::{StowList, UnstowList};
+use mstow::{StowList,UnstowList};
 use std::fs::remove_file;
 use std::os::unix::fs::symlink;
 use std::path::PathBuf;
@@ -57,46 +57,63 @@ fn main() {
         debug!("main: source[{}] = {}", i, j.to_string_lossy());
     }
 
-    macro_rules! gen_list {
-        ($list:ident) => {{
-            let mut l = $list::new();
-            for s in &cli.source {
-                if let Err(e) = l.update(s, &cli.target) {
-                    error!("Abort operation. No changes committed: {}", e);
-                    return;
-                };
-            }
-            l
-        }};
+    macro_rules! ok_or_abort {
+        ($list:ident) => {
+            if let Err(e) = $list {
+                error!("Abort operation. No changes committed: {}", e);
+                return;
+            };
+        };
     }
 
     info!("Begin operation.");
     if !cli.unstowing {
-        for (ref t, ref s) in gen_list!(StowList) {
-            info!("Stow: {} -> {}", t.to_string_lossy(), s.to_string_lossy());
-            if let Err(e) = symlink(s, t) {
-                warn!(
-                    concat!("Failed to create target file {}: {}"),
-                    t.to_string_lossy(),
-                    e
-                );
+        let ll: Result<Vec<_>, _> = cli
+            .source
+            .iter()
+            .map(|s| StowList::new(s, &cli.target))
+            .collect();
+
+	ok_or_abort!(ll);
+
+	for l in ll.unwrap() {
+            for (ref t, ref s) in l {
+		info!("Stow: {} -> {}", t.to_string_lossy(), s.to_string_lossy());
+		if let Err(e) = symlink(s, t) {
+                    warn!(
+			concat!("Failed to create target file {}: {}"),
+			t.to_string_lossy(),
+			e
+                    );
+		}
             }
-        }
+	}
+
     } else {
-        for ref t in gen_list!(UnstowList) {
-            info!(
-                "Unstow: {} -> {}",
-                t.to_string_lossy(),
-                t.read_link().unwrap().to_string_lossy()
-            );
-            if let Err(e) = remove_file(t) {
-                warn!(
-                    "Failed to remove target file {}: {}",
+        let ll: Result<Vec<_>, _> = cli
+            .source
+            .iter()
+            .map(|s| UnstowList::new(s, &cli.target))
+            .collect();
+
+	ok_or_abort!(ll);
+
+	for l in ll.unwrap() {
+            for ref t in l {
+		info!(
+                    "Unstow: {} -> {}",
                     t.to_string_lossy(),
-                    e
-                );
+                    t.read_link().unwrap().to_string_lossy()
+		);
+		if let Err(e) = remove_file(t) {
+                    warn!(
+			"Failed to remove target file {}: {}",
+			t.to_string_lossy(),
+			e
+                    );
+		}
             }
-        }
+	}
     }
     info!("End operation.");
 }
