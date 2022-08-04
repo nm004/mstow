@@ -18,14 +18,13 @@
  */
 
 use log::debug;
-use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::{DirTraversal, SourceTargetDiff};
 
 // target -> source
-type PathMap = HashMap<PathBuf, PathBuf>;
+type PathMap = Vec<(PathBuf, PathBuf)>;
 
 pub fn new_stow_list(source: &Path, target: &Path) -> Result<PathMap, io::Error> {
     let mut s = PathMap::new();
@@ -44,23 +43,12 @@ impl DirTraversal for PathMap {
         target: &Path,
         diff: &SourceTargetDiff,
     ) -> Result<(), io::Error> {
-        debug!("StowList::update_: source = {}", source.to_string_lossy());
-        debug!("StowList::update_: target = {}", target.to_string_lossy());
+        debug!("stow::DirTraversal::update_: source = {}", source.to_string_lossy());
+        debug!("stow::DirTraversal::update_: target = {}", target.to_string_lossy());
         match (target.exists(), target.is_dir()) {
             (false, _) => {
-                let r = self.insert(target.into(), diff.conv_source_rel(source));
-                if let None = r {
-                    return Ok(());
-                }
-                let e = io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    format!(
-                        "Conflict source files {} & {}.",
-                        self.get(target).unwrap().to_string_lossy(),
-                        r.unwrap().to_string_lossy()
-                    ),
-                );
-                Err(e)
+                self.push((target.into(), diff.conv_source_rel(source)));
+                Ok(())
             }
 
             (true, false) => {

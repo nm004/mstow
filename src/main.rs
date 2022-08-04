@@ -21,7 +21,9 @@ use clap::Parser;
 use clap_verbosity_flag::{Verbosity, WarnLevel};
 use log::{debug, error, info, warn};
 use mstow::{new_stow_list, new_unstow_list};
+use std::collections::HashMap;
 use std::fs::remove_file;
+use std::io;
 use std::os::unix::fs::symlink;
 use std::path::PathBuf;
 
@@ -58,11 +60,11 @@ fn main() {
     }
 
     macro_rules! ok_or_abort {
-        ($list:ident) => {
-            if let Err(e) = $list {
+        ($r:expr) => {
+            if let Err(e) = $r {
                 error!("Abort operation. No changes committed: {}", e);
                 return;
-            };
+            }
         };
     }
 
@@ -73,47 +75,63 @@ fn main() {
             .iter()
             .map(|s| new_stow_list(s, &cli.target))
             .collect();
+        ok_or_abort!(ll);
 
-	ok_or_abort!(ll);
+        let ll = ll.unwrap();
+        let mut ll = ll.iter().flatten();
 
-	for l in ll.unwrap().into_iter() {
-            for (ref t, ref s) in l {
-		info!("Stow: {} -> {}", t.to_string_lossy(), s.to_string_lossy());
-		if let Err(e) = symlink(s, t) {
-                    warn!(
-			concat!("Failed to create target file {}: {}"),
-			t.to_string_lossy(),
-			e
-                    );
-		}
+        let maybe_not_conflicted = ll.clone().try_fold(HashMap::new(), |mut acc, i| {
+            let r = acc.insert(i.0.clone(), i.1.clone());
+            if let None = r {
+                return Ok(acc);
             }
-	}
+            let e = io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!(
+                    "Conflict source files {} & {}.",
+                    acc.get(&i.0).unwrap().to_string_lossy(),
+                    r.unwrap().to_string_lossy()
+                ),
+            );
+            Err(e)
+        });
+        ok_or_abort!(maybe_not_conflicted);
 
+        for (ref t, ref s) in ll {
+            info!("Stow: {} -> {}", t.to_string_lossy(), s.to_string_lossy());
+            if let Err(e) = symlink(s, t) {
+                warn!(
+                    "Failed to create target file {}: {}",
+                    t.to_string_lossy(),
+                    e
+                );
+            }
+        }
     } else {
-        let ll: Result<Vec<_>, _> = cli
+        let ll: Result<Box<_>, _> = cli
             .source
             .iter()
             .map(|s| new_unstow_list(s, &cli.target))
             .collect();
+        ok_or_abort!(ll);
 
-	ok_or_abort!(ll);
+        let ll = ll.unwrap();
+        let ll = ll.iter().flatten();
 
-	for l in ll.unwrap() {
-            for ref t in l {
-		info!(
-                    "Unstow: {} -> {}",
+        for ref t in ll {
+            info!(
+                "Unstow: {} -> {}",
+                t.to_string_lossy(),
+                t.read_link().unwrap().to_string_lossy()
+            );
+            if let Err(e) = remove_file(t) {
+                warn!(
+                    "Failed to remove target file {}: {}",
                     t.to_string_lossy(),
-                    t.read_link().unwrap().to_string_lossy()
-		);
-		if let Err(e) = remove_file(t) {
-                    warn!(
-			"Failed to remove target file {}: {}",
-			t.to_string_lossy(),
-			e
-                    );
-		}
+                    e
+                );
             }
-	}
+        }
     }
     info!("End operation.");
 }

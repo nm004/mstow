@@ -40,8 +40,8 @@ impl DirTraversal for Vec<PathBuf> {
         target: &Path,
         diff: &SourceTargetDiff,
     ) -> Result<(), io::Error> {
-        debug!("UnstowList::update_: source = {}", source.to_string_lossy());
-        debug!("UnstowList::update_: target = {}", target.to_string_lossy());
+        debug!("unstow::DirTraversal::update_: source = {}", source.to_string_lossy());
+        debug!("unstow::DirTraversal::update_: target = {}", target.to_string_lossy());
         match (target.is_symlink(), target.is_dir()) {
             (false, false) => {
                 if !target.exists() {
