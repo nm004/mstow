@@ -59,6 +59,18 @@ fn main() {
         debug!("main: source[{}] = {}", i, j.to_string_lossy());
     }
 
+    if !cli.target.exists() {
+        error!("Target directory does not exist");
+        return;
+    }
+
+    for s in &cli.source {
+        if !s.exists() {
+            error!("Source directory {} does not exist", s.to_string_lossy());
+            return;
+        }
+    }
+
     macro_rules! ok_or_abort {
         ($r:expr) => {
             if let Err(e) = $r {
